@@ -8,8 +8,7 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
 
     // Aquí pondremos la IP del servidor que te proporcione el encargado (ej. http://192.168.1.15:8080/)
-    private const val BASE_URL = "http://10.0.2.2:8080/"
-
+    private const val BASE_URL = "http://192.168.1.75:3000/api/"
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
