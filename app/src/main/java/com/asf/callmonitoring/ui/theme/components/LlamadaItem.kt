@@ -41,7 +41,7 @@ fun LlamadaItem(
                 )
 
                 Text(
-                    text = if (llamada.sincronizado) "✓ Sincronizada" else "⏳ Pendiente",
+                    text = if (llamada.sincronizado) "✓ Sincronizada" else "Pendiente",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (llamada.sincronizado) Color(0xFF2E7D32) else Color(0xFFE65100)

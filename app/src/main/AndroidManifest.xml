@@ -25,7 +25,7 @@
 
         <!-- Pantalla Principal -->
         <activity
-            android:name=".ui.main.MainActivity"
+            android:name=".ui.theme.main.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.MonitoreoLlamadasASF">
             <intent-filter>
