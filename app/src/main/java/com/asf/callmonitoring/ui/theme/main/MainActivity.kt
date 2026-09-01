@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.IO) {
                     try {
                         val retrofit = Retrofit.Builder()
-                            .baseUrl("http://192.168.1.50:3000/")
+                            .baseUrl("http://192.168.1.65:3000/")
                             .addConverterFactory(GsonConverterFactory.create())
                             .build()
 

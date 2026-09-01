@@ -1,5 +1,6 @@
 package com.asf.callmonitoring.data.repository
 
+import android.util.Log
 import com.asf.callmonitoring.data.local.dao.LlamadaDao
 import com.asf.callmonitoring.data.local.entity.LlamadaEntity
 import com.asf.callmonitoring.data.remote.LlamadasApiService
@@ -11,34 +12,44 @@ class LlamadaRepository(
     private val apiService: LlamadasApiService
 ) {
 
+    companion object {
+        private const val TAG = "DEBUG_REPO"
+    }
+
     val todasLasLlamadas: Flow<List<LlamadaEntity>> = llamadaDao.obtenerTodasLasLlamadas()
 
     suspend fun procesarNuevaLlamada(llamada: LlamadaEntity): Boolean {
-        // 1. Guardar primero en la base de datos local (SQLite / Room)
+        // 1. Guardar primero en la base de datos local (Room)
         val idGenerado = llamadaDao.insertarLlamada(llamada)
+        Log.d(TAG, "Llamada guardada en Room local con ID: $idGenerado")
 
-        // 2. Intentar subirla al servidor vía Retrofit
+        // 2. Mapear la entidad al DTO que espera el servidor
+        val dto = LlamadaRequestDto(
+            numeroTelefono = llamada.numeroTelefono,
+            nombreContacto = llamada.nombreContacto,
+            tipoLlamada = llamada.tipoLlamada,
+            fechaHora = llamada.fechaHora,
+            duracionSegundos = llamada.duracionSegundos,
+            estadoLlamada = llamada.estadoLlamada,
+            idDispositivo = llamada.idDispositivo
+        )
+
+        // 3. Intentar subir al servidor Node.js
         return try {
-            val dto = LlamadaRequestDto(
-                numeroTelefono = llamada.numeroTelefono,
-                nombreContacto = llamada.nombreContacto,
-                tipoLlamada = llamada.tipoLlamada,
-                fechaHora = llamada.fechaHora,
-                duracionSegundos = llamada.duracionSegundos,
-                estadoLlamada = llamada.estadoLlamada,
-                idDispositivo = llamada.idDispositivo
-            )
-
+            Log.d(TAG, "Enviando DTO a Node.js: $dto")
             val respuesta = apiService.registrarLlamada(dto)
+
             if (respuesta.isSuccessful) {
-                // 3. Marcar como sincronizada si el servidor respondió OK (HTTP 200/201)
+                Log.d(TAG, "ÉXITO en el servidor: Código ${respuesta.code()} Body: ${respuesta.body()}")
                 llamadaDao.marcarComoSincronizada(idGenerado)
                 true
             } else {
+                val errorBody = respuesta.errorBody()?.string()
+                Log.e(TAG, "ERROR HTTP del servidor: Código ${respuesta.code()} - Detalle: $errorBody")
                 false
             }
         } catch (e: Exception) {
-            // Sin conexión o servidor apagado: queda guardada localmente con sincronizado = false
+            Log.e(TAG, "FALLO DE RED/CONEXIÓN al enviar llamada: ${e.message}", e)
             false
         }
     }
@@ -46,6 +57,7 @@ class LlamadaRepository(
     suspend fun sincronizarPendientes(): Int {
         val pendientes = llamadaDao.obtenerLlamadasPendientes()
         var sincronizadas = 0
+        Log.d(TAG, "Iniciando sincronización de ${pendientes.size} llamadas pendientes...")
 
         for (llamada in pendientes) {
             try {
@@ -62,12 +74,17 @@ class LlamadaRepository(
                 if (respuesta.isSuccessful) {
                     llamadaDao.marcarComoSincronizada(llamada.id)
                     sincronizadas++
+                } else {
+                    Log.w(TAG, "Fallo al sincronizar llamada ID ${llamada.id}: Código ${respuesta.code()}")
                 }
             } catch (e: Exception) {
-                // Si falla una por falta de red, se detiene el ciclo para reintentar después
+                Log.e(TAG, "Interrupción en sincronización: ${e.message}")
                 break
             }
         }
+        Log.d(TAG, "Sincronización finalizada. Total sincronizadas: $sincronizadas")
         return sincronizadas
     }
+
+
 }

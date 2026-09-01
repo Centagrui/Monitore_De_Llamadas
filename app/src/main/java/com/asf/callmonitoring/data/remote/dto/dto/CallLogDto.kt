@@ -1,10 +1,14 @@
 package com.asf.callmonitoring.data.remote.dto
 
+import com.google.gson.annotations.SerializedName
+
 data class CallLogDto(
-    val usuario_id: Int? = null,
-    val usuario_nombre: String? = null,
-    val numero: String,
-    val tipo: String,
-    val duracion: Long,
-    val fecha_hora: String
+
+    @SerializedName("numeroTelefono") val numeroTelefono: String,
+    @SerializedName("nombreContacto") val nombreContacto: String?,
+    @SerializedName("tipoLlamada") val tipoLlamada: String,
+    @SerializedName("fechaHora") val fechaHora: String,
+    @SerializedName("duracionSegundos") val duracionSegundos: Long,
+    @SerializedName("estadoLlamada") val estadoLlamada: String,
+    @SerializedName("idDispositivo") val idDispositivo: String
 )

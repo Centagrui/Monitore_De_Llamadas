@@ -1,16 +1,25 @@
 package com.asf.callmonitoring.data.remote
 
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    // Aquí pondremos la IP del servidor que te proporcione el encargado (ej. http://192.168.1.15:8080/)
-    const val BASE_URL = "http://192.168.1.50:3000/"
+    const val BASE_URL = "http://192.168.1.65:3000/"
+
+    // Interceptor configurado a nivel BODY para imprimir encabezados y JSON completo
+    private val loggingInterceptor: HttpLoggingInterceptor by lazy {
+        HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+    }
+
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
