@@ -27,8 +27,6 @@ class UserPreferences(context: Context) {
 
     fun getUserName(): String? = prefs.getString(KEY_USER_NAME, null)
 
-    fun isUserConfigured(): Boolean = getUserId() != -1
-
     // Guarda el nombre del dispositivo manualmente
     fun guardarNombreDispositivo(nombre: String) {
         prefs.edit().putString(KEY_NOMBRE_DISPOSITIVO, nombre.trim()).apply()
@@ -39,5 +37,15 @@ class UserPreferences(context: Context) {
         return prefs.getString(KEY_NOMBRE_DISPOSITIVO, null)
             ?: prefs.getString(KEY_USER_NAME, "")
             ?: ""
+    }
+
+    // Limpia la sesión completa del vendedor al cerrar sesión
+    fun clearUser() {
+        prefs.edit().clear().apply()
+    }
+
+    // Comprueba que el usuario tenga sesión activa y nombre válido
+    fun isUserConfigured(): Boolean {
+        return getUserId() != -1 && obtenerNombreDispositivo().isNotBlank()
     }
 }

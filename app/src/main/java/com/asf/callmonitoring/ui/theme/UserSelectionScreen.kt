@@ -29,7 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.asf.callmonitoring.data.UserPreferences
-import com.asf.callmonitoring.service.CallMonitorService
+import com.asf.callmonitoring.service.CallMonitoringService
 import com.asf.callmonitoring.data.model.Usuario
 
 @Composable
@@ -98,7 +98,7 @@ fun UserSelectionScreen(
                 if (user != null) {
                     prefs.saveUser(user.id, user.nombre)
                     Toast.makeText(context, "Bienvenido, ${user.nombre}", Toast.LENGTH_LONG).show()
-                    CallMonitorService.startService(context)
+                    CallMonitoringService.startService(context)
                     onUserConfigured()
                 } else {
                     Toast.makeText(context, "Por favor selecciona un usuario", Toast.LENGTH_SHORT).show()
