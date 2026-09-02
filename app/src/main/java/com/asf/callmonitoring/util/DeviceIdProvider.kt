@@ -1,19 +1,21 @@
 package com.asf.callmonitoring.util
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.provider.Settings
+import android.os.Build
+import com.asf.callmonitoring.data.UserPreferences
 
 object DeviceIdProvider {
 
-    /**
-     * Obtiene el identificador único de hardware/software del dispositivo (Android ID).
-     */
-    @SuppressLint("HardwareIds")
     fun getDeviceId(context: Context): String {
-        return Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ANDROID_ID
-        ) ?: "DESCONOCIDO"
+        val userPrefs = UserPreferences(context)
+        val nombreConfigurado = userPrefs.obtenerNombreDispositivo()
+
+        // 1. Si el usuario guardó un nombre en la app, usar ese
+        if (nombreConfigurado.isNotBlank()) {
+            return nombreConfigurado
+        }
+
+        // 2. Si no ha guardado nada, usar el modelo del teléfono
+        return Build.MODEL ?: "Dispositivo ASF"
     }
 }

@@ -9,10 +9,10 @@ data class LlamadaEntity(
     val id: Long = 0,
     val numeroTelefono: String,
     val nombreContacto: String?,
-    val tipoLlamada: String,          // SALIENTE, ENTRANTE, PERDIDA
-    val fechaHora: Long,              // Timestamp en milisegundos
-    val duracionSegundos: Long,       // Duración en segundos
-    val estadoLlamada: String,        // CONTESTADA, NO CONTESTADA, BUZON
-    val idDispositivo: String,        // Android ID del celular
-    val sincronizado: Boolean = false // false = pendiente de subir, true = subido al servidor
+    val tipoLlamada: String,
+    val fechaHora: Long,
+    val duracionSegundos: Long,
+    val estadoLlamada: String,
+    val idDispositivo: String,
+    val sincronizado: Boolean = false
 )
