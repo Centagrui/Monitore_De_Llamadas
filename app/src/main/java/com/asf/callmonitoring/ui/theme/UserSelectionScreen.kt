@@ -29,8 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.asf.callmonitoring.data.UserPreferences
-import com.asf.callmonitoring.service.CallMonitoringService
 import com.asf.callmonitoring.data.model.Usuario
+import com.asf.callmonitoring.service.CallMonitoringService
 
 @Composable
 fun UserSelectionScreen(

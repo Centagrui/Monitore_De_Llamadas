@@ -16,27 +16,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.asf.callmonitoring.data.UserPreferences
@@ -56,31 +44,24 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                MainContainer(
-                    modifier = Modifier.padding(innerPadding),
-                    onConfigured = {
-                        // Cuando configure el usuario, iniciamos el servicio
-                        CallMonitoringService.startService(this)
-                        Toast.makeText(this, "Configuración completada", Toast.LENGTH_SHORT).show()
-                    }
-                )
+                PantallaPrincipal(modifier = Modifier.padding(innerPadding))
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainContainer(
-    modifier: Modifier = Modifier,
-    onConfigured: () -> Unit
-) {
+fun PantallaPrincipal(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val prefs = remember { UserPreferences(context) }
 
+    // Estado reactivo del usuario configurado
+    var usuarioConfigurado by remember { mutableStateOf(prefs.obtenerNombreDispositivo()) }
     var listaUsuarios by remember { mutableStateOf<List<Usuario>>(emptyList()) }
-    var cargandoUsuarios by remember { mutableStateOf(true) }
+    var cargandoUsuarios by remember { mutableStateOf(false) }
+    var menuAbierto by remember { mutableStateOf(false) }
 
-    // 1. Permisos esenciales
     val permisosRequeridos = remember {
         val lista = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
@@ -101,7 +82,6 @@ fun MainContainer(
         )
     }
 
-    // 2. Auxiliar para ignorar optimizaciones de batería
     fun pedirIgnorarBateria() {
         try {
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -112,114 +92,198 @@ fun MainContainer(
                 context.startActivity(intent)
             }
         } catch (e: Exception) {
-            Log.e("DEBUG_BATTERY", "Error al solicitar exclusión de batería: ${e.message}")
+            Log.e("DEBUG_BATTERY", "Error al pedir ignorar batería: ${e.message}")
         }
     }
 
-    // 3. Launcher de permisos en tiempo de ejecución
-    val launcher = rememberLauncherForActivityResult(
+    val launcherPermisos = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { resultados ->
-        val todosAceptados = resultados.values.all { it }
-        permisosConcedidos = todosAceptados
-
-        if (todosAceptados) {
+        val todos = resultados.values.all { it }
+        permisosConcedidos = todos
+        if (todos) {
             pedirIgnorarBateria()
-            try {
+            if (usuarioConfigurado.isNotBlank()) {
                 CallMonitoringService.startService(context)
-            } catch (e: Exception) {
-                Log.e("DEBUG_SERVICE", "Error al iniciar servicio: ${e.message}", e)
             }
         } else {
-            Toast.makeText(context, "Se requieren todos los permisos para monitorear", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Se requieren permisos para monitorear", Toast.LENGTH_LONG).show()
         }
     }
 
-    // Solicitar permisos de inmediato al abrir la pantalla si aún no están concedidos
+    // Al entrar: verificar permisos y asegurar que el servicio esté corriendo si ya hay usuario
     LaunchedEffect(Unit) {
+        val usuarioGuardado = prefs.obtenerNombreDispositivo()
+        Log.d("DEBUG_SESION", "Usuario recuperado de disco al abrir: '$usuarioGuardado'")
+        usuarioConfigurado = usuarioGuardado
+
         if (!permisosConcedidos) {
-            launcher.launch(permisosRequeridos)
+            launcherPermisos.launch(permisosRequeridos)
         } else {
             pedirIgnorarBateria()
-            try {
+            if (usuarioGuardado.isNotBlank()) {
                 CallMonitoringService.startService(context)
-            } catch (e: Exception) {
-                Log.e("DEBUG_SERVICE", "Error al iniciar servicio: ${e.message}", e)
             }
         }
     }
 
-    // Cargar la lista de vendedores desde el servidor Node.js
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            try {
-                val retrofit = Retrofit.Builder()
-                    .baseUrl("http://192.168.1.65:3000/")
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build()
+    // ÚNICAMENTE cargar usuarios de la API si NO hay usuario configurado
+    LaunchedEffect(usuarioConfigurado) {
+        if (usuarioConfigurado.isBlank()) {
+            cargandoUsuarios = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val retrofit = Retrofit.Builder()
+                        .baseUrl("http://192.168.1.65:3000/")
+                        .addConverterFactory(GsonConverterFactory.create())
+                        .build()
 
-                val api = retrofit.create(ApiService::class.java)
-                val response = api.getUsuarios()
+                    val api = retrofit.create(ApiService::class.java)
+                    val response = api.getUsuarios()
 
-                if (response.isSuccessful) {
-                    val data = response.body() ?: emptyList()
-                    withContext(Dispatchers.Main) {
-                        listaUsuarios = data
-                        cargandoUsuarios = false
+                    if (response.isSuccessful) {
+                        val data = response.body() ?: emptyList()
+                        withContext(Dispatchers.Main) {
+                            listaUsuarios = data
+                            cargandoUsuarios = false
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) { cargandoUsuarios = false }
                     }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        cargandoUsuarios = false
-                        Toast.makeText(context, "Error al obtener usuarios: ${response.code()}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("DEBUG_USUARIOS", "Error al conectar con el servidor: ${e.message}", e)
-                withContext(Dispatchers.Main) {
-                    cargandoUsuarios = false
+                } catch (e: Exception) {
+                    Log.e("DEBUG_SESION", "Error al conectar API: ${e.message}")
+                    withContext(Dispatchers.Main) { cargandoUsuarios = false }
                 }
             }
         }
     }
 
-    // UI: Si faltan permisos, mostramos botón para solicitarlos
-    if (!permisosConcedidos) {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Permisos requeridos pendientes",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.error
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "La aplicación requiere acceso a llamadas y contactos para poder operar.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { launcher.launch(permisosRequeridos) }) {
-                Text("Conceder Permisos")
+    // =========================================================================
+    // VISTA 1: SI YA HAY USUARIO -> SEGUNDA PANTALLA (BIENVENIDO + MENÚ SALIR)
+    // =========================================================================
+    if (usuarioConfigurado.isNotBlank()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Agro Santa Fé") },
+                    actions = {
+                        IconButton(onClick = { menuAbierto = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Opciones")
+                        }
+                        DropdownMenu(
+                            expanded = menuAbierto,
+                            onDismissRequest = { menuAbierto = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Cambiar Vendedor / Salir") },
+                                onClick = {
+                                    menuAbierto = false
+                                    CallMonitoringService.stopService(context)
+                                    prefs.clearUser()
+                                    usuarioConfigurado = "" // Forzar a volver a la pantalla de selección
+                                    Toast.makeText(context, "Sesión cerrada", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Bienvenido/a",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = usuarioConfigurado,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "✓ Monitoreo en segundo plano activo",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Puedes salir de la app o cerrarla. El servicio seguirá monitoreando y registrando todas las llamadas.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
-    } else if (cargandoUsuarios && listaUsuarios.isEmpty()) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
-        }
-    } else {
-        // Pantalla de selección del vendedor
-        UserSelectionScreen(
-            usuarios = listaUsuarios,
-            onUserConfigured = {
-                onConfigured()
+    }
+    // =========================================================================
+    // VISTA 2: NO HAY USUARIO -> PANTALLA DE SELECCIÓN DE VENDEDOR
+    // =========================================================================
+    else {
+        if (!permisosConcedidos) {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Permisos requeridos pendientes",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Se necesitan permisos de teléfono y contactos para asociar las llamadas al vendedor.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { launcherPermisos.launch(permisosRequeridos) }) {
+                    Text("Conceder Permisos")
+                }
             }
-        )
+        } else if (cargandoUsuarios) {
+            Box(
+                modifier = modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            UserSelectionScreen(
+                usuarios = listaUsuarios,
+                onUserConfigured = {
+                    // Actualizamos el estado con lo que se acaba de guardar en disco
+                    val nuevoUsuario = prefs.obtenerNombreDispositivo()
+                    Log.d("DEBUG_SESION", "Vendedor seleccionado con éxito: '$nuevoUsuario'")
+                    usuarioConfigurado = nuevoUsuario
+                    CallMonitoringService.startService(context)
+                }
+            )
+        }
     }
 }
