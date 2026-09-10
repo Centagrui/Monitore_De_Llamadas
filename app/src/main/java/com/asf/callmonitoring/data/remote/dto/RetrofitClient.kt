@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    const val BASE_URL = "http://192.168.1.65:3000/"
+    const val BASE_URL = "http://192.168.1.250:3000/"
 
     // Interceptor configurado a nivel BODY para imprimir encabezados y JSON completo
     private val loggingInterceptor: HttpLoggingInterceptor by lazy {

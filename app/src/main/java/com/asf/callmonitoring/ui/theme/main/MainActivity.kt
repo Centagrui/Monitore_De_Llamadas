@@ -1,6 +1,8 @@
 package com.asf.callmonitoring.ui.theme.main
 
 import android.Manifest
+import android.app.Activity
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -17,8 +19,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,17 +50,55 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// FUNCIONES AUXILIARES PARA EL MODO SERVICIO SILENCIOSO
+
+
+fun ocultarIconoDelLanzador(context: Context) {
+    try {
+        val packageManager = context.packageManager
+        val componentName = ComponentName(context, MainActivity::class.java)
+
+        packageManager.setComponentEnabledSetting(
+            componentName,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP
+        )
+        Log.d("DEBUG_OCULTAR", "Ícono de la aplicación deshabilitado del lanzador")
+    } catch (e: Exception) {
+        Log.e("DEBUG_OCULTAR", "Error al ocultar el icono: ${e.message}")
+    }
+}
+
+fun abrirAjustesNotificaciones(context: Context) {
+    try {
+        val intent = Intent().apply {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
+                    action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                }
+                else -> {
+                    action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                    data = Uri.parse("package:${context.packageName}")
+                }
+            }
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Log.e("DEBUG_NOTIF", "Error al abrir ajustes de notificación: ${e.message}")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PantallaPrincipal(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val prefs = remember { UserPreferences(context) }
 
-    // Estado reactivo del usuario configurado
     var usuarioConfigurado by remember { mutableStateOf(prefs.obtenerNombreDispositivo()) }
     var listaUsuarios by remember { mutableStateOf<List<Usuario>>(emptyList()) }
     var cargandoUsuarios by remember { mutableStateOf(false) }
-    var menuAbierto by remember { mutableStateOf(false) }
 
     val permisosRequeridos = remember {
         val lista = mutableListOf(
@@ -103,38 +141,30 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
         permisosConcedidos = todos
         if (todos) {
             pedirIgnorarBateria()
-            if (usuarioConfigurado.isNotBlank()) {
-                CallMonitoringService.startService(context)
-            }
         } else {
             Toast.makeText(context, "Se requieren permisos para monitorear", Toast.LENGTH_LONG).show()
         }
     }
 
-    // Al entrar: verificar permisos y asegurar que el servicio esté corriendo si ya hay usuario
     LaunchedEffect(Unit) {
         val usuarioGuardado = prefs.obtenerNombreDispositivo()
-        Log.d("DEBUG_SESION", "Usuario recuperado de disco al abrir: '$usuarioGuardado'")
         usuarioConfigurado = usuarioGuardado
 
         if (!permisosConcedidos) {
             launcherPermisos.launch(permisosRequeridos)
         } else {
             pedirIgnorarBateria()
-            if (usuarioGuardado.isNotBlank()) {
-                CallMonitoringService.startService(context)
-            }
         }
     }
 
-    // ÚNICAMENTE cargar usuarios de la API si NO hay usuario configurado
+    // Cargar usuarios de la API únicamente cuando falte configurar
     LaunchedEffect(usuarioConfigurado) {
         if (usuarioConfigurado.isBlank()) {
             cargandoUsuarios = true
             withContext(Dispatchers.IO) {
                 try {
                     val retrofit = Retrofit.Builder()
-                        .baseUrl("http://192.168.1.65:3000/")
+                        .baseUrl("http://192.168.1.250:3000/")
                         .addConverterFactory(GsonConverterFactory.create())
                         .build()
 
@@ -159,129 +189,74 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
     }
 
     // =========================================================================
-    // VISTA 1: SI YA HAY USUARIO -> SEGUNDA PANTALLA (BIENVENIDO + MENÚ SALIR)
+    // VISTA DE CONFIGURACIÓN
     // =========================================================================
-    if (usuarioConfigurado.isNotBlank()) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Agro Santa Fé") },
-                    actions = {
-                        IconButton(onClick = { menuAbierto = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Opciones")
-                        }
-                        DropdownMenu(
-                            expanded = menuAbierto,
-                            onDismissRequest = { menuAbierto = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Cambiar Vendedor / Salir") },
-                                onClick = {
-                                    menuAbierto = false
-                                    CallMonitoringService.stopService(context)
-                                    prefs.clearUser()
-                                    usuarioConfigurado = "" // Forzar a volver a la pantalla de selección
-                                    Toast.makeText(context, "Sesión cerrada", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Bienvenido/a",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = usuarioConfigurado,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "✓ Monitoreo en segundo plano activo",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Puedes salir de la app o cerrarla. El servicio seguirá monitoreando y registrando todas las llamadas.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+    if (!permisosConcedidos) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Permisos requeridos pendientes",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Se necesitan permisos de llamadas y contactos para habilitar el servicio de monitoreo.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { launcherPermisos.launch(permisosRequeridos) }) {
+                Text("Conceder Permisos")
             }
         }
-    }
-    // =========================================================================
-    // VISTA 2: NO HAY USUARIO -> PANTALLA DE SELECCIÓN DE VENDEDOR
-    // =========================================================================
-    else {
-        if (!permisosConcedidos) {
-            Column(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
+    } else if (cargandoUsuarios) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    } else {
+        // Interfaz de selección de vendedor
+        Column(modifier = modifier.fillMaxSize()) {
+            // Botón opcional previo para apagar las alertas visuales si se desea
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End
             ) {
-                Text(
-                    text = "Permisos requeridos pendientes",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Se necesitan permisos de teléfono y contactos para asociar las llamadas al vendedor.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = { launcherPermisos.launch(permisosRequeridos) }) {
-                    Text("Conceder Permisos")
+                TextButton(onClick = { abrirAjustesNotificaciones(context) }) {
+                    Text("Ajustar Notificaciones")
                 }
             }
-        } else if (cargandoUsuarios) {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
+
             UserSelectionScreen(
                 usuarios = listaUsuarios,
                 onUserConfigured = {
-                    // Actualizamos el estado con lo que se acaba de guardar en disco
                     val nuevoUsuario = prefs.obtenerNombreDispositivo()
-                    Log.d("DEBUG_SESION", "Vendedor seleccionado con éxito: '$nuevoUsuario'")
-                    usuarioConfigurado = nuevoUsuario
+                    Log.d("DEBUG_SESION", "Usuario activado: '$nuevoUsuario'")
+
+                    // 1. Arranca el servicio persistente
                     CallMonitoringService.startService(context)
+
+                    Toast.makeText(
+                        context,
+                        "Servicio activado en segundo plano",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    // 2. Oculta el icono del teléfono
+                    ocultarIconoDelLanzador(context)
+
+                    // 3. Cierra la aplicación de raíz
+                    activity?.finishAffinity()
                 }
             )
         }

