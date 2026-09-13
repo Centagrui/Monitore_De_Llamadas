@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
 // FUNCIONES AUXILIARES PARA EL MODO SERVICIO SILENCIOSO
 
 
+
+
+
 fun ocultarIconoDelLanzador(context: Context) {
     try {
         val packageManager = context.packageManager
