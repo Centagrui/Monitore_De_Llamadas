@@ -19,38 +19,43 @@ class PhoneCallReceiver : BroadcastReceiver() {
         private const val TAG = "DEBUG_CALL_RECEIVER"
         private var ultimoEstado: String = TelephonyManager.EXTRA_STATE_IDLE
         private var huboLlamadaPrevia: Boolean = false
+
+        // CANDADO 1: Evita que dos eventos IDLE en menos de 3 segundos se procesen doble
+        private var ultimoTimestampProcesado: Long = 0L
+
+        // CANDADO 2: Guarda el identificador único o fecha de la última llamada subida
+        private var ultimaFechaLlamadaRegistrada: Long = 0L
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "==> Evento recibido en BroadcastReceiver: ${intent.action}")
+        if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
 
-        if (intent.action == TelephonyManager.ACTION_PHONE_STATE_CHANGED) {
-            val estadoActual = intent.getStringExtra(TelephonyManager.EXTRA_STATE) ?: return
-            Log.d(TAG, "Estado detectado: $estadoActual (Último estado: $ultimoEstado, Previa: $huboLlamadaPrevia)")
+        val estadoActual = intent.getStringExtra(TelephonyManager.EXTRA_STATE) ?: return
+        Log.d(TAG, "Estado detectado: $estadoActual (Previo: $ultimoEstado, HuboPrevia: $huboLlamadaPrevia)")
 
-            if (estadoActual == ultimoEstado) {
-                return
+        when (estadoActual) {
+            TelephonyManager.EXTRA_STATE_RINGING,
+            TelephonyManager.EXTRA_STATE_OFFHOOK -> {
+                // Se inició la llamada (entrante o saliente)
+                huboLlamadaPrevia = true
             }
 
-            when (estadoActual) {
-                TelephonyManager.EXTRA_STATE_RINGING,
-                TelephonyManager.EXTRA_STATE_OFFHOOK -> {
-                    Log.d(TAG, "Llamada iniciada/timbrando. Marcando huboLlamadaPrevia = true")
-                    huboLlamadaPrevia = true
-                }
-                TelephonyManager.EXTRA_STATE_IDLE -> {
-                    if (huboLlamadaPrevia) {
-                        Log.d(TAG, "Llamada finalizada (IDLE). Procesando envío...")
-                        huboLlamadaPrevia = false
-                        procesarLlamadaTerminada(context.applicationContext)
-                    } else {
-                        Log.d(TAG, "Estado IDLE ignorado (no hubo llamada previa)")
-                    }
+            TelephonyManager.EXTRA_STATE_IDLE -> {
+                val ahora = System.currentTimeMillis()
+
+                // Si hubo llamada y no se ha disparado este bloque en los últimos 3.5 segundos
+                if (huboLlamadaPrevia && (ahora - ultimoTimestampProcesado > 3500)) {
+                    Log.d(TAG, "Llamada finalizada válida (IDLE). Procesando envío...")
+                    huboLlamadaPrevia = false
+                    ultimoTimestampProcesado = ahora
+                    procesarLlamadaTerminada(context.applicationContext)
+                } else {
+                    Log.d(TAG, "IDLE descartado (Duplicado o sin llamada previa)")
                 }
             }
-
-            ultimoEstado = estadoActual
         }
+
+        ultimoEstado = estadoActual
     }
 
     private fun procesarLlamadaTerminada(appContext: Context) {
@@ -58,20 +63,30 @@ class PhoneCallReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                Log.d(TAG, "Esperando 2 segundos para sincronización con CallLog...")
-                delay(2000)
+                // Tiempo para que Android termine de escribir el registro final en CallLog
+                delay(2500)
 
                 val llamada = CallLogHelper.obtenerUltimaLlamada(appContext)
                 Log.d(TAG, "Resultado de CallLogHelper: $llamada")
 
                 if (llamada != null) {
+                    // Si tu entidad o modelo llamada tiene fecha_hora como timestamp (o campo único)
+                    // Validamos que no sea la misma que acabamos de enviar hace unos segundos
+                    // Por esto:
+                    val fechaLlamadaMillis = llamada.fechaHora
+                    if (fechaLlamadaMillis == ultimaFechaLlamadaRegistrada) {
+                        Log.w(TAG, "Llamada duplicada detectada en CallLog. Omitiendo envío.")
+                        return@launch
+                    }
+                    ultimaFechaLlamadaRegistrada = fechaLlamadaMillis
+
                     val db = AppDatabase.getDatabase(appContext)
                     val repository = LlamadaRepository(db.llamadaDao(), RetrofitClient.apiService)
-                    Log.d(TAG, "Llamando a repository.procesarNuevaLlamada...")
+                    Log.d(TAG, "Enviando llamada única a repository...")
                     repository.procesarNuevaLlamada(llamada)
-                    Log.d(TAG, "Proceso completado exitosamente.")
+                    Log.d(TAG, "Llamada procesada exitosamente.")
                 } else {
-                    Log.e(TAG, "ERROR: CallLogHelper devolvió null. Revisa permisos de READ_CALL_LOG.")
+                    Log.e(TAG, "ERROR: CallLogHelper devolvió null.")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "EXCEPCIÓN al procesar llamada: ${e.message}", e)

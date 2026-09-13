@@ -6,11 +6,14 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.CallLog
 import android.provider.ContactsContract
+import android.util.Log
 import com.asf.callmonitoring.data.local.entity.LlamadaEntity
 import com.asf.callmonitoring.util.CallClassifier
 import com.asf.callmonitoring.util.DeviceIdProvider
 
 object CallLogHelper {
+
+    private const val TAG = "DEBUG_CALL_LOG_HELPER"
 
     /**
      * Consulta el registro de llamadas más reciente del sistema Android.
@@ -27,17 +30,26 @@ object CallLogHelper {
 
         cursor?.use {
             if (it.moveToFirst()) {
+                val fecha = it.getLong(it.getColumnIndex(CallLog.Calls.DATE))
+                val ahora = System.currentTimeMillis()
+
+                if (ahora - fecha > 25000) {
+                    Log.w(TAG, "La última llamada en CallLog es antigua (${(ahora - fecha) / 1000}s atrás). Se ignora.")
+                    return null
+                }
+
                 val numero = it.getString(it.getColumnIndex(CallLog.Calls.NUMBER)) ?: "Desconocido"
                 val tipo = it.getInt(it.getColumnIndex(CallLog.Calls.TYPE))
-                val fecha = it.getLong(it.getColumnIndex(CallLog.Calls.DATE))
                 val duracion = it.getLong(it.getColumnIndex(CallLog.Calls.DURATION))
 
-                // Buscar el nombre del contacto en la agenda telefónica
+                // Nombre del contacto
                 val nombreContacto = obtenerNombreContacto(context, numero)
 
-                // Clasificar la llamada usando nuestro utilitario
+                // Clasificación corregida
                 val (tipoLlamadaStr, estadoLlamadaStr) = CallClassifier.clasificarLlamada(tipo, duracion)
                 val deviceId = DeviceIdProvider.getDeviceId(context)
+
+                Log.d(TAG, "Llamada detectada -> Tipo: $tipoLlamadaStr, Estado: $estadoLlamadaStr, Duración: ${duracion}s")
 
                 return LlamadaEntity(
                     numeroTelefono = numero,
@@ -54,12 +66,9 @@ object CallLogHelper {
         return null
     }
 
-    /**
-     * Busca en la agenda de contactos de Android si el número tiene un nombre guardado.
-     */
     @SuppressLint("Range")
     private fun obtenerNombreContacto(context: Context, numero: String): String? {
-        if (numero.isBlank()) return null
+        if (numero.isBlank() || numero == "Desconocido") return null
 
         val uri = Uri.withAppendedPath(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
@@ -67,16 +76,14 @@ object CallLogHelper {
         )
         val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
 
-        try {
-            val cursor = context.contentResolver.query(uri, projection, null, null, null)
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    return it.getString(it.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME))
-                }
+        return try {
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    cursor.getString(cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME))
+                } else null
             }
         } catch (e: Exception) {
-            return null
+            null
         }
-        return null
     }
 }

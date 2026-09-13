@@ -164,7 +164,7 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
             withContext(Dispatchers.IO) {
                 try {
                     val retrofit = Retrofit.Builder()
-                        .baseUrl("http://192.168.1.250:3000/")
+                        .baseUrl("https://api2.agrosantafe.com.mx")
                         .addConverterFactory(GsonConverterFactory.create())
                         .build()
 
