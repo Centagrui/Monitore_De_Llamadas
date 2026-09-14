@@ -19,42 +19,43 @@ class PhoneCallReceiver : BroadcastReceiver() {
         private const val TAG = "DEBUG_CALL_RECEIVER"
         private var ultimoEstado: String = TelephonyManager.EXTRA_STATE_IDLE
         private var huboLlamadaPrevia: Boolean = false
-
-        // CANDADO 1: Evita que dos eventos IDLE en menos de 3 segundos se procesen doble
         private var ultimoTimestampProcesado: Long = 0L
-
-        // CANDADO 2: Guarda el identificador único o fecha de la última llamada subida
         private var ultimaFechaLlamadaRegistrada: Long = 0L
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        Log.d("DEBUG_BROADCAST", "¡BroadcastReceiver disparado! Acción: ${intent.action}")
         if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
 
         val estadoActual = intent.getStringExtra(TelephonyManager.EXTRA_STATE) ?: return
         Log.d(TAG, "Estado detectado: $estadoActual (Previo: $ultimoEstado, HuboPrevia: $huboLlamadaPrevia)")
 
         when (estadoActual) {
-            TelephonyManager.EXTRA_STATE_RINGING,
+            TelephonyManager.EXTRA_STATE_RINGING -> {
+                // Se detecta que está sonando (entrante).
+                // Marcamos como llamada previa para capturar si se convierte en perdida o si se contesta.
+                huboLlamadaPrevia = true
+            }
+
             TelephonyManager.EXTRA_STATE_OFFHOOK -> {
-                // Se inició la llamada (entrante o saliente)
+                // Llamada en curso (contestada o saliente)
                 huboLlamadaPrevia = true
             }
 
             TelephonyManager.EXTRA_STATE_IDLE -> {
                 val ahora = System.currentTimeMillis()
 
-                // Si hubo llamada y no se ha disparado este bloque en los últimos 3.5 segundos
+                // Si hubo un timbre o llamada activa previa y pasaron los 3.5 segundos de seguridad
                 if (huboLlamadaPrevia && (ahora - ultimoTimestampProcesado > 3500)) {
-                    Log.d(TAG, "Llamada finalizada válida (IDLE). Procesando envío...")
+                    Log.d(TAG, "Llamada finalizada o perdida válida (IDLE). Procesando envío...")
                     huboLlamadaPrevia = false
                     ultimoTimestampProcesado = ahora
                     procesarLlamadaTerminada(context.applicationContext)
                 } else {
-                    Log.d(TAG, "IDLE descartado (Duplicado o sin llamada previa)")
+                    Log.d(TAG, "IDLE descartado (Duplicado o sin evento previo)")
                 }
             }
         }
-
         ultimoEstado = estadoActual
     }
 
@@ -63,16 +64,12 @@ class PhoneCallReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Tiempo para que Android termine de escribir el registro final en CallLog
                 delay(2500)
 
                 val llamada = CallLogHelper.obtenerUltimaLlamada(appContext)
                 Log.d(TAG, "Resultado de CallLogHelper: $llamada")
 
                 if (llamada != null) {
-                    // Si tu entidad o modelo llamada tiene fecha_hora como timestamp (o campo único)
-                    // Validamos que no sea la misma que acabamos de enviar hace unos segundos
-                    // Por esto:
                     val fechaLlamadaMillis = llamada.fechaHora
                     if (fechaLlamadaMillis == ultimaFechaLlamadaRegistrada) {
                         Log.w(TAG, "Llamada duplicada detectada en CallLog. Omitiendo envío.")
@@ -82,7 +79,7 @@ class PhoneCallReceiver : BroadcastReceiver() {
 
                     val db = AppDatabase.getDatabase(appContext)
                     val repository = LlamadaRepository(db.llamadaDao(), RetrofitClient.apiService)
-                    Log.d(TAG, "Enviando llamada única a repository...")
+                    Log.d(TAG, "Enviando llamada a repository...")
                     repository.procesarNuevaLlamada(llamada)
                     Log.d(TAG, "Llamada procesada exitosamente.")
                 } else {

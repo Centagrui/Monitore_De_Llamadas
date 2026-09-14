@@ -22,7 +22,6 @@ class LlamadaRepository(
 
     val todasLasLlamadas: Flow<List<LlamadaEntity>> = llamadaDao.obtenerTodasLasLlamadas()
 
-    // --- FUNCIÓN AUXILIAR PARA OBTENER EL NOMBRE SIN ERRORES DE TIPO ---
     private fun obtenerNombreSeguro(idEntidad: String): String {
         val nombrePref = userPreferences?.obtenerNombreDispositivo() ?: ""
         val modeloTelefono = Build.MODEL ?: "Desconocido"

