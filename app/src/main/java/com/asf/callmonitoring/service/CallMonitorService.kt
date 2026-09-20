@@ -8,22 +8,21 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter // <-- 1. IMPORTANTE: Añadir este import
+import android.content.IntentFilter
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
-import android.telephony.TelephonyManager // <-- 2. IMPORTANTE: Añadir este import
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.asf.callmonitoring.receiver.PhoneCallReceiver // <-- 3. IMPORTANTE: Importar tu receptor
+import com.asf.callmonitoring.receiver.PhoneCallReceiver
 
 class CallMonitoringService : Service() {
 
-    // Instancia del receptor para controlarlo dinámicamente
     private var callReceiver: PhoneCallReceiver? = null
 
     companion object {
-        private const val TAG = "DEBUG_SERVICE" // Etiqueta de depuración
+        private const val TAG = "DEBUG_SERVICE"
         private const val CHANNEL_ID = "asf_monitoring_channel"
         private const val NOTIFICATION_ID = 1001
 
@@ -47,8 +46,6 @@ class CallMonitoringService : Service() {
         crearCanalNotificacion()
         startForeground(NOTIFICATION_ID, crearNotificacion())
 
-        // --- REGISTRO DINÁMICO CRUCIAL ---
-        // Esto le avisa a Android/HyperOS que este servicio activo quiere escuchar llamadas
         try {
             callReceiver = PhoneCallReceiver()
             val filter = IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
@@ -61,7 +58,6 @@ class CallMonitoringService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Desregistramos el receiver para evitar fugas de memoria si se destruye el servicio
         try {
             callReceiver?.let {
                 unregisterReceiver(it)
@@ -70,9 +66,11 @@ class CallMonitoringService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error al desregistrar receiver: ${e.message}")
         }
+        programarAutoReiniciador()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        programarAutoReiniciador()
         return START_STICKY
     }
 
@@ -80,6 +78,7 @@ class CallMonitoringService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
+        programarAutoReiniciador()
 
         val restartServiceIntent = Intent(applicationContext, CallMonitoringService::class.java).also {
             it.setPackage(packageName)
@@ -97,6 +96,30 @@ class CallMonitoringService : Service() {
             SystemClock.elapsedRealtime() + 1000,
             restartServicePendingIntent
         )
+    }
+
+    private fun programarAutoReiniciador() {
+        try {
+            val intent = Intent(applicationContext, CallMonitoringService::class.java)
+            val pendingIntent = PendingIntent.getService(
+                applicationContext,
+                0,
+                intent,
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            // Programa un despertador a 15 minutos para asegurar que el sistema lo relance
+            val triggerTime = SystemClock.elapsedRealtime() + (15 * 60 * 1000)
+
+            alarmManager.set(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerTime,
+                pendingIntent
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al programar auto-reinicio: ${e.message}")
+        }
     }
 
     private fun crearCanalNotificacion() {

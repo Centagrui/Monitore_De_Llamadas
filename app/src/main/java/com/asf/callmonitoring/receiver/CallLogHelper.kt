@@ -15,9 +15,6 @@ object CallLogHelper {
 
     private const val TAG = "DEBUG_CALL_LOG_HELPER"
 
-    /**
-     * Consulta el registro de llamadas más reciente del sistema Android.
-     */
     @SuppressLint("Range")
     fun obtenerUltimaLlamada(context: Context): LlamadaEntity? {
         val cursor: Cursor? = context.contentResolver.query(
@@ -35,7 +32,6 @@ object CallLogHelper {
                 val tipo = it.getInt(it.getColumnIndex(CallLog.Calls.TYPE))
                 val duracion = it.getLong(it.getColumnIndex(CallLog.Calls.DURATION))
 
-                // Nombre del contacto
                 val nombreContacto = obtenerNombreContacto(context, numero)
 
                 // Clasificación corregida
