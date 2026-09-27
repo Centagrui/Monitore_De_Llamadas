@@ -19,6 +19,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- NUEVO: Permisos para el "MacroDroid Interno" (AlarmManager en Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <!-- NUEVO: Permiso VIP para levantar servicios desde el fondo (Mostrar sobre otras apps) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -38,7 +45,7 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Receptor para volver a encender el servicio si reinician el celular o MacroDroid envía la señal -->
+        <!-- Receptor para volver a encender el servicio si reinician el celular o AlarmManager envía la señal -->
         <receiver
             android:name=".receiver.BootReceiver"
             android:enabled="true"
@@ -47,6 +54,8 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+
+                <!-- La acción que dispara tu AlarmManager -->
                 <action android:name="com.asf.callmonitoring.ACTION_RESTART" />
             </intent-filter>
         </receiver>
@@ -65,7 +74,9 @@
         <activity
             android:name=".ui.theme.main.MainActivity"
             android:exported="true"
+            android:excludeFromRecents="true"
             android:theme="@style/Theme.MonitoreoLlamadasASF">
+            <!-- excludeFromRecents="true" asegura que la app NUNCA aparezca en la multitarea -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

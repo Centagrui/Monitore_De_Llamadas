@@ -134,22 +134,36 @@ class CallMonitoringService : Service() {
 
     private fun programarAutoReiniciador() {
         try {
-            val intent = Intent(applicationContext, CallMonitoringService::class.java)
-            val pendingIntent = PendingIntent.getService(
+            // 1. Redirigimos la alarma hacia tu BootReceiver, NO directamente al servicio
+            val intent = Intent(applicationContext, com.asf.callmonitoring.receiver.BootReceiver::class.java).apply {
+                action = "com.asf.callmonitoring.ACTION_RESTART"
+            }
+
+            val pendingIntent = PendingIntent.getBroadcast(
                 applicationContext,
                 0,
                 intent,
-                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val triggerTime = SystemClock.elapsedRealtime() + (15 * 60 * 1000)
-
-            alarmManager.set(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                triggerTime,
-                pendingIntent
-            )
+            // 2. Reducimos el tiempo a 2 minutos para cerrar el "punto ciego"
+            val triggerTime = SystemClock.elapsedRealtime() + (10 * 60 * 1000)
+            // 3. Forzamos a HyperOS a despertar el proceso incluso en sueño profundo
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            }
+            Log.d(TAG, "Auto-reinicio programado exitosamente.")
         } catch (e: Exception) {
             Log.e(TAG, "Error al programar auto-reinicio: ${e.message}")
         }
