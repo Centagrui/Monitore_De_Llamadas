@@ -52,7 +52,6 @@ class MainActivity : ComponentActivity() {
 
 // FUNCIONES AUXILIARES PARA EL MODO SERVICIO SILENCIOSO
 
-
 fun ocultarIconoDelLanzador(context: Context) {
     try {
         val packageManager = context.packageManager
@@ -141,6 +140,7 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
         permisosConcedidos = todos
         if (todos) {
             pedirIgnorarBateria()
+            CallMonitoringService.startService(context)
         } else {
             Toast.makeText(context, "Se requieren permisos para monitorear", Toast.LENGTH_LONG).show()
         }
@@ -154,6 +154,7 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
             launcherPermisos.launch(permisosRequeridos)
         } else {
             pedirIgnorarBateria()
+            CallMonitoringService.startService(context)
         }
     }
 
@@ -161,7 +162,6 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
         cargandoUsuarios = true
         withContext(Dispatchers.IO) {
             try {
-                // Cliente con timeout extendido para evitar cancelaciones prematuras
                 val okHttpClient = okhttp3.OkHttpClient.Builder()
                     .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                     .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -228,9 +228,7 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
             CircularProgressIndicator()
         }
     } else {
-        // Interfaz de selección de vendedor
         Column(modifier = modifier.fillMaxSize()) {
-            // Botón opcional previo para apagar las alertas visuales si se desea
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -248,7 +246,6 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
                     val nuevoUsuario = prefs.obtenerNombreDispositivo()
                     Log.d("DEBUG_SESION", "Usuario activado: '$nuevoUsuario'")
 
-                    // 1. Arranca el servicio persistente
                     CallMonitoringService.startService(context)
 
                     Toast.makeText(
@@ -257,10 +254,7 @@ fun PantallaPrincipal(modifier: Modifier = Modifier) {
                         Toast.LENGTH_LONG
                     ).show()
 
-                    // 2. Oculta el icono del teléfono
                     ocultarIconoDelLanzador(context)
-
-                    // 3. Cierra la aplicación de raíz
                     activity?.finishAffinity()
                 }
             )

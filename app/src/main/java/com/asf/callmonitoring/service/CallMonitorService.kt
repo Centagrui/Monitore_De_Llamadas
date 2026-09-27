@@ -24,7 +24,7 @@ import com.asf.callmonitoring.receiver.PhoneCallReceiver
 class CallMonitoringService : Service() {
 
     private var callReceiver: PhoneCallReceiver? = null
-    private var networkReceiver: NetworkChangeReceiver? = null // <-- NUEVO: Receptor de red
+    private var networkReceiver: NetworkChangeReceiver? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     companion object {
@@ -46,7 +46,18 @@ class CallMonitoringService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        // --- ADQUIRIR WAKE_LOCK PARA EVITAR SUEÑO PROFUNDO ---
+        // 1. Crear el canal de notificación primero (obligatorio para Android 8+)
+        crearCanalNotificacion()
+
+        // 2. Lanzar el Foreground Service con su notificación visible de inmediato
+        try {
+            startForeground(NOTIFICATION_ID, crearNotificacion())
+            Log.d(TAG, "Notificación de primer plano iniciada correctamente.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al iniciar startForeground: ${e.message}")
+        }
+
+        // 3. Adquirir WakeLock para evitar sueño profundo
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = powerManager.newWakeLock(
@@ -60,10 +71,7 @@ class CallMonitoringService : Service() {
             Log.e(TAG, "Error al adquirir WakeLock: ${e.message}")
         }
 
-        crearCanalNotificacion()
-        startForeground(NOTIFICATION_ID, crearNotificacion())
-
-        // --- REGISTRO DINÁMICO DE LLAMADAS ---
+        // 4. Registrar receptor dinámico de llamadas
         try {
             callReceiver = PhoneCallReceiver()
             val filter = IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
@@ -73,7 +81,7 @@ class CallMonitoringService : Service() {
             Log.e(TAG, "Error al registrar dinámicamente el PhoneCallReceiver: ${e.message}", e)
         }
 
-        // --- NUEVO: REGISTRO DINÁMICO DE CAMBIOS DE RED ---
+        // 5. Registrar receptor dinámico de cambios de red
         try {
             networkReceiver = NetworkChangeReceiver()
             val netFilter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
@@ -87,23 +95,17 @@ class CallMonitoringService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            callReceiver?.let {
-                unregisterReceiver(it)
-            }
+            callReceiver?.let { unregisterReceiver(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Error al desregistrar callReceiver: ${e.message}")
         }
 
-        // --- NUEVO: DESREGISTRAR RED ---
         try {
-            networkReceiver?.let {
-                unregisterReceiver(it)
-            }
+            networkReceiver?.let { unregisterReceiver(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Error al desregistrar networkReceiver: ${e.message}")
         }
 
-        // Liberar el WakeLock si el servicio muere
         try {
             wakeLock?.let {
                 if (it.isHeld) {
@@ -157,11 +159,11 @@ class CallMonitoringService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Sincronización del Sistema",
-                NotificationManager.IMPORTANCE_MIN
+                "Monitoreo del Sistema ASF",
+                NotificationManager.IMPORTANCE_HIGH // IMPORTANCE_HIGH obliga a Android a mostrarla visualmente
             ).apply {
-                description = "Monitoreo continuo en segundo plano"
-                setShowBadge(false)
+                description = "Servicio activo de sincronización"
+                setShowBadge(true)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
@@ -169,14 +171,22 @@ class CallMonitoringService : Service() {
     }
 
     private fun crearNotificacion(): Notification {
+        // Creamos un Intent para que al tocar la notificación (si el usuario llega a verla) abra la app o MainActivity
+        val intent = Intent(this, com.asf.callmonitoring.ui.theme.main.MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Actualización del sistema")
             .setContentText("Verificando servicios en segundo plano...")
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setPriority(NotificationCompat.PRIORITY_MIN) // Prioridad mínima para que sea lo más invisible y silenciosa posible
+            .setPriority(NotificationCompat.PRIORITY_HIGH) // Prioridad alta para asegurar visibilidad
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setOngoing(true) // Impide que se deslice, cumpliendo con la regla de Android
+            .setContentIntent(pendingIntent)
+            .setOngoing(true) // Impide que el usuario la deslice
+            .setAutoCancel(false)
             .build()
     }
 }
-

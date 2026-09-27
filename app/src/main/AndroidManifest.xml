@@ -38,7 +38,7 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Receptor para volver a encender el servicio si reinician el celular -->
+        <!-- Receptor para volver a encender el servicio si reinician el celular o MacroDroid envía la señal -->
         <receiver
             android:name=".receiver.BootReceiver"
             android:enabled="true"
@@ -47,10 +47,11 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.asf.callmonitoring.ACTION_RESTART" />
             </intent-filter>
         </receiver>
 
-        <!-- Receptor de eventos de llamadas entrantes/salientes (Estático opcional) -->
+        <!-- Receptor de eventos de llamadas entrantes/salientes -->
         <receiver
             android:name=".receiver.PhoneCallReceiver"
             android:enabled="true"
