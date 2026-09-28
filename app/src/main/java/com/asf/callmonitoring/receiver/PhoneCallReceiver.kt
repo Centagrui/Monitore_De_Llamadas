@@ -3,6 +3,7 @@ package com.asf.callmonitoring.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager // <-- Importación movida correctamente a la cabecera
 import android.telephony.TelephonyManager
 import android.util.Log
 import com.asf.callmonitoring.data.local.AppDatabase
@@ -60,34 +61,37 @@ class PhoneCallReceiver : BroadcastReceiver() {
     }
 
     private fun procesarLlamadaTerminada(appContext: Context) {
+        // 1. Escudo para evitar que Android mate el Receiver
         val pendingResult = goAsync()
+
+        // 2. WakeLock para mantener el procesador despierto
+        val powerManager = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CallReceiver::ProcesandoLlamada")
+        wakeLock.acquire(10 * 1000L) // Inmunidad por 10 segundos máximo
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                delay(2500)
+                // 3. Margen de seguridad para que Android guarde en la BD oficial
+                delay(3500)
 
-                val llamada = CallLogHelper.obtenerUltimaLlamada(appContext)
-                Log.d(TAG, "Resultado de CallLogHelper: $llamada")
+                // 4. Pedimos todas las llamadas nuevas a CallLogHelper
+                val llamadasNuevas = CallLogHelper.obtenerLlamadasNuevas(appContext)
+                Log.d(TAG, "Llamadas encontradas tras el delay: ${llamadasNuevas.size}")
 
-                if (llamada != null) {
-                    val fechaLlamadaMillis = llamada.fechaHora
-                    if (fechaLlamadaMillis == ultimaFechaLlamadaRegistrada) {
-                        Log.w(TAG, "Llamada duplicada detectada en CallLog. Omitiendo envío.")
-                        return@launch
-                    }
-                    ultimaFechaLlamadaRegistrada = fechaLlamadaMillis
-
+                if (llamadasNuevas.isNotEmpty()) {
                     val db = AppDatabase.getDatabase(appContext)
                     val repository = LlamadaRepository(db.llamadaDao(), RetrofitClient.apiService)
-                    Log.d(TAG, "Enviando llamada a repository...")
-                    repository.procesarNuevaLlamada(llamada)
-                    Log.d(TAG, "Llamada procesada exitosamente.")
-                } else {
-                    Log.e(TAG, "ERROR: CallLogHelper devolvió null.")
+
+                    // Procesamos y subimos una por una
+                    for (llamada in llamadasNuevas) {
+                        repository.procesarNuevaLlamada(llamada)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "EXCEPCIÓN al procesar llamada: ${e.message}", e)
             } finally {
+                // 5. Liberamos siempre los recursos
+                if (wakeLock.isHeld) wakeLock.release()
                 pendingResult.finish()
             }
         }

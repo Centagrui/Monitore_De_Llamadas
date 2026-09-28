@@ -148,6 +148,7 @@ class CallMonitoringService : Service() {
 
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
             // 2. Reducimos el tiempo a 2 minutos para cerrar el "punto ciego"
+// Modifica únicamente esta línea dentro de programarAutoReiniciador():
             val triggerTime = SystemClock.elapsedRealtime() + (10 * 60 * 1000)
             // 3. Forzamos a HyperOS a despertar el proceso incluso en sueño profundo
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
