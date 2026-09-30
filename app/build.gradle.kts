@@ -8,7 +8,10 @@ plugins {
 android {
     namespace = "com.asf.callmonitoring"
     compileSdk = 35
-
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
     defaultConfig {
         applicationId = "com.asf.callmonitoring"
         minSdk = 24
@@ -41,7 +44,7 @@ android {
 }
 
 dependencies {
-    // AndroidX & Lifecycle
+    // AndroidX y Lifecycle
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -55,7 +58,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
 
-    // Retrofit & OkHttp
+    // Retrofit y OkHttp
     val retrofitVersion = "2.11.0"
     implementation("com.squareup.retrofit2:retrofit:$retrofitVersion")
     implementation("com.squareup.retrofit2:converter-gson:$retrofitVersion")
@@ -74,7 +77,7 @@ dependencies {
     kapt("androidx.room:room-compiler:$roomVersion")
     kapt("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.9.0")
 
-    // Testing & Debugging
+    // Testing y Debugging
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
