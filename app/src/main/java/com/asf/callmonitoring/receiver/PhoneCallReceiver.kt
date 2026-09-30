@@ -3,7 +3,7 @@ package com.asf.callmonitoring.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.PowerManager // <-- Importación movida correctamente a la cabecera
+import android.os.PowerManager
 import android.telephony.TelephonyManager
 import android.util.Log
 import com.asf.callmonitoring.data.local.AppDatabase
@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.asf.callmonitoring.util.FileLogger
 
 class PhoneCallReceiver : BroadcastReceiver() {
 
@@ -30,7 +31,7 @@ class PhoneCallReceiver : BroadcastReceiver() {
 
         val estadoActual = intent.getStringExtra(TelephonyManager.EXTRA_STATE) ?: return
         Log.d(TAG, "Estado detectado: $estadoActual (Previo: $ultimoEstado, HuboPrevia: $huboLlamadaPrevia)")
-
+        FileLogger.log(context, "Teléfono reaccionó. Estado: $estadoActual")
         when (estadoActual) {
             TelephonyManager.EXTRA_STATE_RINGING -> {
                 // Se detecta que está sonando (entrante).

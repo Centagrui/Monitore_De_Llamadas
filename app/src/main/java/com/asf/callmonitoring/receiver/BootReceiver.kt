@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.asf.callmonitoring.service.CallMonitoringService
+import  com.asf.callmonitoring.util.FileLogger
 
 class BootReceiver : BroadcastReceiver() {
 
@@ -15,7 +16,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         Log.d(TAG, "Señal recibida en BootReceiver: $action")
-
+        FileLogger.log(context, "Alarma/Reinicio recibido. Acción: ${intent.action}")
         if (action == Intent.ACTION_BOOT_COMPLETED ||
             action == "android.intent.action.QUICKBOOT_POWERON" ||
             action == "com.htc.intent.action.QUICKBOOT_POWERON" ||
